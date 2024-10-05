@@ -24,6 +24,18 @@ def index():
         notes=notes,
     )
 
+@app.route("/notes/delete/<int:note_id>", methods=["POST"])
+def notes_delete(note_id):
+    print("Note deleted")
+    db = models.db
+    note = db.session.execute(db.select(models.Note).where(models.Note.id == note_id)).scalars().first()
+    
+    if note:
+        db.session.delete(note)
+        db.session.commit()
+    
+    return flask.redirect(flask.url_for("index"))
+
 
 @app.route("/notes/create", methods=["GET", "POST"])
 def notes_create():
