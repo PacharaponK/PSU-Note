@@ -24,7 +24,7 @@ def index():
         notes=notes,
     )
 
-@app.route("/notes/delete/<int:note_id>", methods=["POST"])
+@app.route("/notes/delete/<int:note_id>")
 def notes_delete(note_id):
     print("Note deleted")
     db = models.db
@@ -48,10 +48,12 @@ def notes_create():
         )
     note = models.Note()
     form.populate_obj(note)
+
     note.tags = []
 
     db = models.db
     for tag_name in form.tags.data:
+        print("tag_name", tag_name)
         tag = (
             db.session.execute(db.select(models.Tag).where(models.Tag.name == tag_name))
             .scalars()
@@ -69,8 +71,33 @@ def notes_create():
 
     return flask.redirect(flask.url_for("index"))
 
+@app.route("/notes/update/<int:note_id>", methods=["GET", "POST"])
+def notes_update(note_id):
+    db = models.db
+    note = db.session.execute(db.select(models.Note).where(models.Note.id == note_id)).scalars().first()
 
-@app.route("/tags/<tag_name>")
+    form = forms.NoteForm(obj=note)
+
+    if flask.request.method == "POST":
+        if form.validate_on_submit():
+            note.title = form.title.data
+            note.description = form.description.data 
+
+            db.session.commit()
+            return flask.redirect(flask.url_for("index"))
+        else:
+            print("error", form.errors)
+
+
+    return flask.render_template(
+        "notes-update.html",
+        form=form,
+        note=note,
+    )
+
+
+
+@app.route("/tags/<tag_name>", methods=["GET", "POST"])
 def tags_view(tag_name):
     db = models.db
     tag = (
@@ -81,6 +108,9 @@ def tags_view(tag_name):
     notes = db.session.execute(
         db.select(models.Note).where(models.Note.tags.any(id=tag.id))
     ).scalars()
+
+    if flask.request.method == "POST":
+        print("TEST")
 
     return flask.render_template(
         "tags-view.html",
