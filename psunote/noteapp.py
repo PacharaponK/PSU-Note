@@ -24,16 +24,21 @@ def index():
         notes=notes,
     )
 
+
 @app.route("/notes/delete/<int:note_id>")
 def notes_delete(note_id):
     print("Note deleted")
     db = models.db
-    note = db.session.execute(db.select(models.Note).where(models.Note.id == note_id)).scalars().first()
-    
+    note = (
+        db.session.execute(db.select(models.Note).where(models.Note.id == note_id))
+        .scalars()
+        .first()
+    )
+
     if note:
         db.session.delete(note)
         db.session.commit()
-    
+
     return flask.redirect(flask.url_for("index"))
 
 
@@ -71,30 +76,46 @@ def notes_create():
 
     return flask.redirect(flask.url_for("index"))
 
+
 @app.route("/notes/update/<int:note_id>", methods=["GET", "POST"])
 def notes_update(note_id):
     db = models.db
-    note = db.session.execute(db.select(models.Note).where(models.Note.id == note_id)).scalars().first()
+    note = (
+        db.session.execute(db.select(models.Note).where(models.Note.id == note_id))
+        .scalars()
+        .first()
+    )
 
     form = forms.NoteForm(obj=note)
 
-    if flask.request.method == "POST":
-        if form.validate_on_submit():
-            note.title = form.title.data
-            note.description = form.description.data 
+    if flask.request.method == "GET":
+        form.tags.data = [tag.name for tag in note.tags]
 
-            db.session.commit()
-            return flask.redirect(flask.url_for("index"))
-        else:
-            print("error", form.errors)
+    if form.validate_on_submit():
+        note.title = form.title.data
+        note.description = form.description.data
+        note.tags.clear()
+        for tag_name in form.tags.data:
+            tag = (
+                db.session.execute(
+                    db.select(models.Tag).where(models.Tag.name == tag_name)
+                )
+                .scalars()
+                .first()
+            )
+            if not tag:
+                tag = models.Tag(name=tag_name)
+                db.session.add(tag)
 
+            note.tags.append(tag)
+        db.session.commit()
+        return flask.redirect(flask.url_for("index"))
 
     return flask.render_template(
         "notes-update.html",
         form=form,
         note=note,
     )
-
 
 
 @app.route("/tags/<tag_name>", methods=["GET", "POST"])
@@ -111,6 +132,15 @@ def tags_view(tag_name):
 
     if flask.request.method == "POST":
         print("TEST")
+        db = models.db
+        if tag:
+            for note in notes:
+                if tag in note.tags:
+                    note.tags.remove(tag)
+            db.session.commit()
+            db.session.delete(tag)
+            db.session.commit()
+        return flask.redirect(flask.url_for("index"))
 
     return flask.render_template(
         "tags-view.html",
